@@ -106,7 +106,7 @@ static inline int rlp_int_size_from_type(RlpType_t t) {
 static inline bool rlp_type_mem_check(size_t buffSz, RlpType_t type) {
   if (RLP_TYPE_IS_INTEGER_TYPE(type))
       return buffSz == rlp_int_size_from_type(type);
-    else if (type == RLP_TYPE_BYTE_ARRAY)
+    else if (type == RLP_TYPE_BYTE_ARRAY || type == RLP_TYPE_ENCODED_DATA)
       return true;
   // Likely RLP_TYPE_INVALID
   return false;
@@ -154,8 +154,18 @@ int rlp_encode_element(void *rlpEncodedOutput, size_t rlpEncodedOutputLen, const
       }
     }
   }
+
   // Element Header Generation
-  if(rlpElementLen == 0) {
+  if (rlpElement->type == RLP_TYPE_ENCODED_DATA) {
+    // If this item was pre-RLP-encoded, copy the data directly and return.
+    // Generally you should use this type to handle nested arrays, which must be
+    // recursively encoded. Rather than add recursion to this lib we can push
+    // that to the user layer and use the result of nested list encodes here.
+    // For example: [a, [b, c]] -> enc([a, enc([b, c])])
+    //              where `enc([b,c])` is of type `RLP_TYPE_ENCODED_DATA`
+    memcpy(rlpOut, rlpElementBuff, rlpElementLen);
+    rlpEncodedLen = rlpElementLen;
+  } else if(rlpElementLen == 0) {
     rlpEncodedLen = 1;
     rlpOut[0] = (uint8_t) RLP_OFFSET_ITEM_SHORT;
   }
@@ -225,6 +235,7 @@ int rlp_encode_list(void *rlpEncodedOutput, size_t rlpEncodedOutputLen,
       return ret;
     rlpEncodedLen += ret;
   }
+
   // Calculate list header byte size
   uint8_t listHdrByteCnt = 0;
   for(int byteShifts = rlpEncodedLen; byteShifts > 0; byteShifts = byteShifts >> 8) {
@@ -253,5 +264,10 @@ int rlp_encode_list(void *rlpEncodedOutput, size_t rlpEncodedOutputLen,
     rlpOut[0] = (uint8_t) (RLP_OFFSET_LIST_SHORT + rlpEncodedLen);
   }
   rlpEncodedLen += listHdrByteCnt;
+
+  // 0-element lists are an edge case. Set encoded length to 1 to capture prefix.
+  if (rplElementsLen == 0 && rlpEncodedLen == 0) {
+    rlpEncodedLen = 1;
+  }
   return rlpEncodedLen;
 }
