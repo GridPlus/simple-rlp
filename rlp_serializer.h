@@ -57,6 +57,7 @@ typedef enum {
   RLP_TYPE_INT256,
   RLP_TYPE_INT512,
   RLP_TYPE_INT1024,
+  RLP_TYPE_ENCODED_DATA,
 } RlpType_t;
 #define RLP_TYPE_IS_INTEGER_TYPE(x) ((x) >= RLP_TYPE_INT8) && ((x) <= RLP_TYPE_INT1024)
 
